@@ -21,6 +21,7 @@ CONFIG_EVENT = "Local\\DictateConfigChanged"   # настройки → осно
 SHOW_EVENT = "Local\\DictateShowSettings"      # кто угодно → основной процесс: «открой настройки»
 QUIT_EVENT = "Local\\DictateQuit"              # установщик/обновление → основной процесс: «закройся»
 FOCUS_EVENT = "Local\\DictateSettingsFocus"    # → окну настроек: «выйди на передний план»
+CLOSE_EVENT = "Local\\DictateSettingsClose"    # → окну настроек: «закройся», перед выходом программы
 
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 UNINSTALL_KEY = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\Dictate"
@@ -212,8 +213,30 @@ def run_settings():
             win.restore()
             win.show()
 
+    def close_loop():
+        # закрываемся по просьбе основной программы или если она пропала (вышла, упала)
+        ev = k32.CreateEventW(None, False, False, CLOSE_EVENT)
+        parent = k32.OpenProcess(0x00100000, False, os.getppid())  # SYNCHRONIZE
+        handles = (ctypes.c_void_p * 2)(ev, parent) if parent else (ctypes.c_void_p * 1)(ev)
+        k32.WaitForMultipleObjects(len(handles), handles, False, 0xFFFFFFFF)
+        win.destroy()
+
     threading.Thread(target=focus_loop, daemon=True).start()
+    threading.Thread(target=close_loop, daemon=True).start()
     _start()
+
+
+def close_settings(timeout=4.0):
+    """Просим окно настроек закрыться и ждём, пока его процесс завершится."""
+    if not signal(CLOSE_EVENT):
+        return
+    end = time.time() + timeout
+    while time.time() < end:
+        h = k32.OpenMutexW(0x00100000, False, "Local\\DictateSettingsUI")
+        if not h:
+            return
+        k32.CloseHandle(h)
+        time.sleep(0.1)
 
 
 # ---------------------------------------------------------------- установка

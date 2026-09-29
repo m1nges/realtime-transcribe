@@ -344,10 +344,13 @@ class App:
         subprocess.Popen(cmd, cwd=str(engine.DATA_DIR))
 
     def quit(self):
+        import webui
         try:
             self.tray.stop()
         except Exception:
             pass
+        # окно настроек работает из той же распакованной папки: пока оно живо, её не удалить
+        webui.close_settings()
         self.root.after(0, self.root.destroy)
 
     def run(self):
