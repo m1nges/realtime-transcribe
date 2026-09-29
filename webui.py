@@ -25,7 +25,7 @@ CLOSE_EVENT = "Local\\DictateSettingsClose"    # → окну настроек: 
 
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 UNINSTALL_KEY = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\Dictate"
-SAFE_URLS = ("https://openrouter.ai/", "https://github.com/m1nges/", "https://yoomoney.ru/fundraise/1KJUSBQONDU.260930")
+SAFE_URLS = ("https://openrouter.ai/", "https://github.com/m1nges/", "https://pay.cloudtips.ru/p/a7ac0e75")
 
 
 def signal(name):
