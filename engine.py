@@ -19,7 +19,7 @@ import numpy as np
 log = logging.getLogger("dictate")
 
 APP = "Dictate"
-VERSION = "1.0.9"
+VERSION = "1.1.0"
 REPO = "m1nges/realtime-transcribe"
 REG_KEY = r"Software\Dictate"
 DEFAULT_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home())) / APP
@@ -64,6 +64,8 @@ DEFAULTS = {
     "autostart": False,
     "check_updates": True,
     "support_collapsed": False,
+    "lowercase": False,        # начинать фразы и предложения с маленькой буквы
+    "no_final_dot": False,     # не ставить точку в конце
     "min_seconds": 0.35,
 }
 
@@ -422,6 +424,25 @@ def cleanup_openrouter(text):
     except Exception as e:
         log.warning("Странный ответ OpenRouter, чищу локально: %s", e)
         return cleanup_local(text)
+
+
+_SENT_START = re.compile(r"(^|[.!?…]\s+)(\w+)")
+
+
+def format_text(text):
+    """Оформление по вкусу пользователя: маленькая буква в начале предложений, без точки в конце."""
+    if config["lowercase"]:
+        def low(m):
+            word = m.group(2)
+            if len(word) > 1 and word.isupper():  # аббревиатуры (API, МГУ) не трогаем
+                return m.group(0)
+            return m.group(1) + word[0].lower() + word[1:]
+        text = _SENT_START.sub(low, text)
+    if config["no_final_dot"]:
+        stripped = text.rstrip()
+        if stripped.endswith(".") and not stripped.endswith(".."):
+            text = stripped[:-1]
+    return text
 
 
 def cleanup(text):

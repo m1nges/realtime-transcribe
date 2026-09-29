@@ -334,7 +334,7 @@ class App:
                 if not raw:
                     log.info("Тишина, ничего не вставляю")
                     continue
-                text = engine.cleanup(raw)
+                text = engine.format_text(engine.cleanup(raw))
                 t2 = time.time()
                 secs = len(audio) / engine.SAMPLE_RATE
                 # Сам текст в лог не пишем: там может быть что угодно личное
