@@ -24,7 +24,7 @@ FOCUS_EVENT = "Local\\DictateSettingsFocus"    # → окну настроек: 
 
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 UNINSTALL_KEY = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\Dictate"
-SAFE_URLS = ("https://openrouter.ai/", "https://github.com/m1nges/", "https://t.tb.ru/pm_short/9xhlkJcgsW5")
+SAFE_URLS = ("https://openrouter.ai/", "https://github.com/m1nges/", "https://yoomoney.ru/fundraise/1KJUSBQONDU.260930")
 
 
 def signal(name):

@@ -19,7 +19,7 @@ import numpy as np
 log = logging.getLogger("dictate")
 
 APP = "Dictate"
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 REPO = "m1nges/realtime-transcribe"
 REG_KEY = r"Software\Dictate"
 DEFAULT_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home())) / APP

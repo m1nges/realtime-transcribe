@@ -12,6 +12,7 @@ import sys
 import threading
 import subprocess
 import time
+from pathlib import Path
 
 # Потоки OpenMP после распознавания не крутятся вхолостую, а сразу засыпают — в простое 0% CPU
 os.environ.setdefault("KMP_BLOCKTIME", "0")
@@ -354,6 +355,18 @@ class App:
         os._exit(0)
 
 
+def boot_log(line):
+    """Самый первый шаг запуска — пишем рядом с exe, чтобы было видно, почему программа выбрала тот или иной путь."""
+    try:
+        p = Path(os.environ.get("LOCALAPPDATA", ".")) / "Dictate-boot.log"
+        if p.exists() and p.stat().st_size > 200_000:
+            p.unlink()
+        with open(p, "a", encoding="utf-8") as f:
+            f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} v{engine.VERSION} {line}\n")
+    except OSError:
+        pass
+
+
 def main():
     try:
         ctypes.windll.shcore.SetProcessDpiAwareness(2)
@@ -367,9 +380,16 @@ def main():
     if "--uninstall" in args:
         return webui.uninstall()
     if FROZEN:
-        installed = engine.install_dir()
         here = os.path.dirname(os.path.abspath(sys.executable))
+        installed = engine.install_dir()
+        if installed is None and (Path(here) / "config.json").exists():
+            # exe лежит в папке со своими настройками — это и есть установка, просто потерялась запись в реестре
+            engine.set_install_dir(here)
+            installed = Path(here)
+        boot_log(f"exe={sys.executable} args={args} installed={installed}")
         if installed is None:
+            if ctypes.windll.kernel32.OpenMutexW(0x00100000, False, "Local\\DictateApp"):
+                return webui.signal(webui.SHOW_EVENT)  # программа уже работает — просто откроем настройки
             return webui.run_setup()  # первый запуск: спрашиваем, куда ставить
         if os.path.normcase(str(installed)) != os.path.normcase(here):
             return webui.update_installed(installed)  # запустили скачанную версию — обновляем установленную
