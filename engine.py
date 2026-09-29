@@ -19,7 +19,7 @@ import numpy as np
 log = logging.getLogger("dictate")
 
 APP = "Dictate"
-VERSION = "1.1.1"
+VERSION = "1.1.2"
 REPO = "m1nges/realtime-transcribe"
 REG_KEY = r"Software\Dictate"
 DEFAULT_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home())) / APP
@@ -347,21 +347,52 @@ def pick_engine():
 
 # ---------------------------------------------------------------- чистка
 
-FILLERS = [
-    r"э+(?:-э+)*м*", r"м+(?:-м+)*", r"ну", r"типа", r"короче", r"как бы", r"в общем", r"в общем-то",
-    r"так сказать", r"это самое", r"значит", r"собственно",
-]
-_FILLER_RE = re.compile(
-    r"(,\s*)?(?<![\w-])(?:%s)(?![\w-])(\s*,)?" % "|".join(FILLERS), re.IGNORECASE)
+# Междометия — всегда мусор. Убираем где угодно.
+INTERJECTIONS = [r"э+(?:-э+)*м*", r"м+(?:-м+)*"]
+# Слова, у которых бывает нормальный смысл («сделай короче», «это значит, что», «какого типа»).
+# Убираем, только когда они стоят обособленно: в начале фразы или между запятыми.
+SOFT_FILLERS = [r"в общем-то", r"в общем", r"так сказать", r"это самое", r"как бы", r"короче", r"типа",
+                r"значит", r"собственно", r"ну"]
+_INTERJ_RE = re.compile(r"(,\s*)?(?<![\w-])(?:%s)(?![\w-])(\s*,)?" % "|".join(INTERJECTIONS), re.IGNORECASE)
+_SOFT_RE = re.compile(r"(?<![\w-])(?:%s)(?![\w-])" % "|".join(SOFT_FILLERS), re.IGNORECASE)
+_KEEP_AFTER = re.compile(r"\s*(говоря|то ни было|то)\b", re.IGNORECASE)  # «короче говоря», «как бы то ни было»
 _REPEAT_RE = re.compile(r"\b(\w+)(\s*,?\s+\1\b)+", re.IGNORECASE)
+
+
+def _drop_soft_filler(t):
+    """Убирает первое обособленное слово-паразит. Возвращает новую строку или None, если убирать нечего."""
+    for m in _SOFT_RE.finditer(t):
+        left, right = t[:m.start()].rstrip(), t[m.end():]
+        if _KEEP_AFTER.match(right):
+            continue
+        at_start = left == "" or left[-1] in ".!?…"
+        comma_before = left.endswith(",")
+        r = right.lstrip()
+        comma_after = r.startswith(",")
+        at_end = r == "" or r[0] in ".!?…"
+        if not (at_start or (comma_before and (comma_after or at_end))):
+            continue  # стоит внутри обычного предложения — значит, это смысл, а не паразит
+        if comma_after:
+            r = r[1:].lstrip()
+        if comma_before and not at_start and not comma_after:
+            left = left[:-1]  # «…, короче.» → «….»
+        elif comma_before and comma_after:
+            left = left[:-1]  # «я, типа, пришёл» → «я пришёл»
+        return (left + " " + r).strip() if left else r
+    return None
 
 
 def cleanup_local(text):
     """Бесплатная чистка правилами. Убирает только явные паразиты, смысл не трогает."""
-    # паразит в запятых — вводный, убираем вместе с обеими запятыми; иначе оставляем одну
     t = text
-    for _ in range(3):  # паразиты часто идут подряд: «ну, короче, типа»
-        t = _FILLER_RE.sub(lambda m: " " if (m.group(1) and m.group(2)) or not (m.group(1) or m.group(2)) else ", ", t)
+    for _ in range(3):  # междометия в запятых — вводные, убираем вместе с обеими запятыми
+        t = _INTERJ_RE.sub(lambda m: " " if (m.group(1) and m.group(2)) or not (m.group(1) or m.group(2)) else ", ", t)
+    t = re.sub(r"^[\s,]+", "", t)
+    for _ in range(10):  # паразиты часто идут подряд: «ну, короче, типа»
+        nt = _drop_soft_filler(t)
+        if nt is None:
+            break
+        t = nt
     t = _REPEAT_RE.sub(r"\1", t)
     t = re.sub(r"\s+([,.!?;:])", r"\1", t)
     t = re.sub(r"([,.!?;:])(?:\s*,)+", r"\1", t)   # «., » → «.»
@@ -373,7 +404,7 @@ def cleanup_local(text):
 
 CLEANUP_PROMPT = """Ты редактор надиктованного текста. Тебе приходит сырая расшифровка речи в теге <speech>.
 Верни тот же текст, только почищенный:
-- убери слова-паразиты и заминки: «ну», «типа», «короче», «как бы», «вот», «это самое», «э», «м», «эм», «слушай» (когда это не обращение по смыслу);
+- убери слова-паразиты и заминки: «ну», «типа», «короче», «как бы», «вот», «это самое», «э», «м», «эм», «слушай» — но только когда это паразиты; если слово несёт смысл («сделай текст короче», «это значит, что», «какого типа», «слушай меня»), оставь его;
 - убери повторы и оговорки, когда человек сам себя поправил, оставь исправленный вариант;
 - расставь пунктуацию и заглавные буквы, исправь очевидные ошибки распознавания;
 - сохрани смысл, порядок мыслей, лексику и стиль автора, включая мат; ничего не добавляй от себя, не сокращай содержание, не пересказывай.
