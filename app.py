@@ -146,7 +146,7 @@ class Hotkey:
 # ---------------------------------------------------------------- приложение
 
 class App:
-    def __init__(self):
+    def __init__(self, updated=False):
         import tkinter as tk
 
         from overlay import Overlay
@@ -176,11 +176,13 @@ class App:
         if first_run:
             config.update()  # фиксируем настройки по умолчанию
             self.open_settings()
-        self.reload_engine(notify_ready=first_run)
+        self.updated = updated
+        self.announced = False  # «готова к работе» — один раз за запуск
+        self.reload_engine()
         threading.Thread(target=self._update_loop, daemon=True).start()
 
     # --- движок
-    def reload_engine(self, notify_ready=False):
+    def reload_engine(self):
         def load():
             dev, model = engine.pick_engine()
             where = "видеокарте" if dev == "cuda" else "процессоре"
@@ -221,8 +223,14 @@ class App:
                     return
             self.set_status(f"Работает на {where} · {self.transcriber.name}")
             log.info(self.status)
-            if notify_ready or not cached:
-                self.notify(f"Готово! Держи «{key_label(config['hotkey'])}» и говори.")
+            if not self.announced:
+                self.announced = True
+                key = key_label(config["hotkey"])
+                if self.updated:
+                    self.notify(f"Диктовка обновлена до версии {engine.VERSION} и готова к работе. "
+                                f"Держи «{key}» и говори.")
+                elif config["notify_ready"] or not cached:
+                    self.notify(f"Диктовка готова к работе. Держи «{key}» и говори.")
 
         threading.Thread(target=load, daemon=True).start()
 
@@ -437,10 +445,7 @@ def main():
     setup_logging()
     single_instance()
     log.info("Старт v%s, папка: %s", engine.VERSION, engine.DATA_DIR)
-    app = App()
-    if "--updated" in args:
-        app.notify(f"Диктовка обновлена до версии {engine.VERSION}.")
-    app.run()
+    App(updated="--updated" in args).run()
 
 
 if __name__ == "__main__":

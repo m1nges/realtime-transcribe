@@ -19,7 +19,7 @@ import numpy as np
 log = logging.getLogger("dictate")
 
 APP = "Dictate"
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 REPO = "m1nges/realtime-transcribe"
 REG_KEY = r"Software\Dictate"
 DEFAULT_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home())) / APP
@@ -66,6 +66,7 @@ DEFAULTS = {
     "support_collapsed": False,
     "lowercase": False,        # начинать фразы и предложения с маленькой буквы
     "no_final_dot": False,     # не ставить точку в конце
+    "notify_ready": True,      # уведомлять, когда после запуска модель загрузилась
     "min_seconds": 0.35,
 }
 
