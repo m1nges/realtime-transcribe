@@ -1,3 +1,5 @@
+[![Уже скачали](https://img.shields.io/github/downloads/m1nges/realtime-transcribe/total?label=%D1%83%D0%B6%D0%B5%20%D1%81%D0%BA%D0%B0%D1%87%D0%B0%D0%BB%D0%B8&color=8b6cff&style=for-the-badge)](https://github.com/m1nges/realtime-transcribe/releases/latest)
+
 # Диктовка
 
 Голосовой ввод в любое поле Windows. Зажимаешь клавишу, говоришь, отпускаешь, и текст появляется там, где стоит курсор: в браузере, Telegram, Word, редакторе кода, где угодно.
