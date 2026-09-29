@@ -19,7 +19,7 @@ import numpy as np
 log = logging.getLogger("dictate")
 
 APP = "Dictate"
-VERSION = "1.1.2"
+VERSION = "1.1.3"
 REPO = "m1nges/realtime-transcribe"
 REG_KEY = r"Software\Dictate"
 DEFAULT_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home())) / APP
@@ -359,6 +359,13 @@ _KEEP_AFTER = re.compile(r"\s*(говоря|то ни было|то)\b", re.IGNO
 _REPEAT_RE = re.compile(r"\b(\w+)(\s*,?\s+\1\b)+", re.IGNORECASE)
 
 
+# Слова, с которых обычно начинается новая часть фразы: перед ними запятую после паразита оставляем
+_CLAUSE_START = re.compile(r"(?:не|ни|я|ты|он|она|оно|мы|вы|они|а|но|и|или|что|чтобы|если|когда|потому|поэтому|"
+                           r"так|там|тут|здесь|это|вот|давай|слушай|пусть|может|надо|нужно|потом|тогда|зато|хотя|"
+                           r"всё|все|мне|сейчас|уже)\b",
+                           re.IGNORECASE)
+
+
 def _drop_soft_filler(t):
     """Убирает первое обособленное слово-паразит. Возвращает новую строку или None, если убирать нечего."""
     for m in _SOFT_RE.finditer(t):
@@ -376,8 +383,9 @@ def _drop_soft_filler(t):
             r = r[1:].lstrip()
         if comma_before and not at_start and not comma_after:
             left = left[:-1]  # «…, короче.» → «….»
-        elif comma_before and comma_after:
-            left = left[:-1]  # «я, типа, пришёл» → «я пришёл»
+        elif comma_before and comma_after and not _CLAUSE_START.match(r):
+            # «я, типа, пришёл» → «я пришёл»; а «предложение, короче, не хочу» → «предложение, не хочу»
+            left = left[:-1]
         return (left + " " + r).strip() if left else r
     return None
 
