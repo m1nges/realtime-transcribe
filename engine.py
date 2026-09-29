@@ -19,7 +19,7 @@ import numpy as np
 log = logging.getLogger("dictate")
 
 APP = "Dictate"
-VERSION = "1.0.3"
+VERSION = "1.0.4"
 REPO = "m1nges/realtime-transcribe"
 REG_KEY = r"Software\Dictate"
 DEFAULT_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home())) / APP
@@ -63,8 +63,11 @@ DEFAULTS = {
     "cleanup_model": "google/gemini-2.5-flash-lite",
     "autostart": False,
     "check_updates": True,
+    "support_collapsed": False,
     "min_seconds": 0.35,
 }
+
+LANGUAGES = ("ru", "en", "auto")
 
 MODELS = {
     "small": "Быстрая (small, ~460 МБ)",
@@ -234,7 +237,7 @@ class Transcriber:
     def transcribe(self, audio, language):
         segments, _ = self.model.transcribe(
             audio,
-            language=None if language == "auto" else language,
+            language=None if language == "auto" else (language if language in LANGUAGES else "ru"),
             beam_size=self.beam,
             vad_filter=True,
             condition_on_previous_text=False,

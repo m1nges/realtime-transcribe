@@ -138,6 +138,9 @@ class SettingsApi:
     def get_state(self):
         config.reload()
         stats.reload()
+        if config["language"] not in engine.LANGUAGES:  # язык не из списка — переводим на русский
+            config.update(language="ru")
+            signal(CONFIG_EVENT)
         st = read_status()
         cfg = {k: v for k, v in config.data.items() if k != "openrouter_key_enc"}
         return {
@@ -364,11 +367,23 @@ def wait_main_closed(timeout=8.0):
     return False
 
 
-def close_other_copies():
-    """Окно настроек и прочие копии держат exe открытым — закрываем всё, кроме себя (и своего загрузчика)."""
-    subprocess.run(["taskkill", "/F", "/IM", "Dictate.exe", "/FI", f"PID ne {os.getpid()}",
-                    "/FI", f"PID ne {os.getppid()}"], creationflags=0x08000000, capture_output=True, check=False)
-    time.sleep(0.5)
+def _other_copies():
+    out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq Dictate.exe", "/FO", "CSV", "/NH"],
+                         capture_output=True, text=True, creationflags=0x08000000).stdout
+    pids = {int(line.split('","')[1]) for line in out.splitlines() if line.startswith('"Dictate.exe"')}
+    return pids - {os.getpid(), os.getppid()}
+
+
+def close_other_copies(grace=6.0):
+    """Ждём, пока старые копии завершатся сами: их загрузчику нужно время, чтобы убрать временную папку.
+    Только то, что за это время не закрылось (например, зависшее), закрываем принудительно."""
+    end = time.time() + grace
+    while _other_copies() and time.time() < end:
+        time.sleep(0.2)
+    if _other_copies():
+        subprocess.run(["taskkill", "/F", "/IM", "Dictate.exe", "/FI", f"PID ne {os.getpid()}",
+                        "/FI", f"PID ne {os.getppid()}"], creationflags=0x08000000, capture_output=True, check=False)
+        time.sleep(0.5)
 
 
 def update_installed(dst):

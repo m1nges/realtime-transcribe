@@ -120,6 +120,20 @@ input[type=password], input[type=text] { width: 100%; font: inherit; color: var(
 .support .side { flex: none; display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .support .qr { width: 58px; height: 58px; border-radius: 8px; cursor: zoom-in; background: #fff; padding: 3px; transition: transform .2s; }
 .support .qr:hover { transform: scale(1.05); }
+.support, .support .heart, .support .qr, .support .btn { transition: all .3s cubic-bezier(.2,.8,.2,1); }
+.support .more { display: grid; grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows .3s cubic-bezier(.2,.8,.2,1), opacity .25s; }
+.support .more > div { overflow: hidden; }
+.support .fold { position: absolute; top: 6px; right: 8px; width: 22px; height: 22px; border: 0; border-radius: 6px; background: transparent;
+  color: var(--dim); cursor: pointer; font-size: 13px; line-height: 22px; padding: 0; transition: background .2s, transform .3s; }
+.support .fold:hover { background: var(--card2); color: var(--fg); }
+.support.compact { padding: 7px 40px 7px 10px; }
+.support.compact .heart { width: 22px; height: 22px; border-radius: 7px; font-size: 11px; }
+.support.compact .body b { margin: 0; font-size: 12.5px; font-weight: 500; }
+.support.compact .more { grid-template-rows: 0fr; opacity: 0; }
+.support.compact .qr { width: 0; height: 0; padding: 0; opacity: 0; }
+.support.compact .side { gap: 0; }
+.support.compact .btn { padding: 4px 10px; font-size: 12px; }
+.support.compact .fold { top: 50%; margin-top: -11px; transform: rotate(180deg); }
 .qr-big { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: rgba(10,8,20,.6); opacity: 0; pointer-events: none; transition: opacity .25s; cursor: zoom-out; }
 .qr-big img { width: 260px; height: 260px; background: #fff; padding: 10px; border-radius: 18px; transform: scale(.92); transition: transform .3s cubic-bezier(.2,.8,.2,1); box-shadow: 0 20px 60px rgba(0,0,0,.4); }
 .qr-big div { color: #fff; margin-top: 12px; text-align: center; font-size: 13px; }
@@ -175,11 +189,11 @@ footer { display: flex; align-items: center; justify-content: space-between; col
   <section class="card">
     <h2>Распознавание</h2>
     <div class="row"><div class="label">Язык</div>
-      <select id="language">
-        <option value="ru">Русский</option><option value="en">English</option>
-        <option value="uk">Українська</option><option value="auto">Определять сам</option>
-      </select>
+      <div class="seg" data-key="language">
+        <button data-v="ru">Русский</button><button data-v="en">English</button><button data-v="auto" title="Сам определяет язык каждой фразы">Авто</button>
+      </div>
     </div>
+    <div class="hint" style="margin: 6px 0 0 116px">«Авто» понимает любой язык — их около ста. Если говоришь на одном языке, лучше выбрать его: так точнее на коротких фразах.</div>
     <div class="row"><div class="label">Где считать</div>
       <div class="seg" data-key="device">
         <button data-v="auto">Авто</button><button data-v="cuda">Видеокарта</button><button data-v="cpu">Процессор</button>
@@ -243,17 +257,18 @@ footer { display: flex; align-items: center; justify-content: space-between; col
     </div>
   </section>
 
-  <section class="support">
+  <section class="support" id="support">
     <div class="heart">♥</div>
     <div class="body">
       <b>Поддержать разработчика</b>
-      Программа полностью бесплатная. Если она вам понравилась, расскажите о ней друзьям — пусть разлетается.
-      Я молодой парень и делаю приложения в кайф, а не на продажу. Если захотите поддержать — вот страничка в CloudTips: любой картой или через СБП, без регистрации. Можно и по QR.
+      <div class="more"><div>Программа полностью бесплатная. Если она вам понравилась, расскажите о ней друзьям — пусть разлетается.
+      Я молодой парень и делаю приложения в кайф, а не на продажу. Если захотите поддержать — вот страничка в CloudTips: любой картой или через СБП, без регистрации. Можно и по QR.</div></div>
     </div>
     <div class="side">
       <img class="qr" src="qr.png" alt="QR" onclick="document.body.classList.add('qr-open')">
       <button class="btn" onclick="api.open_url('https://pay.cloudtips.ru/p/a7ac0e75')">Поддержать</button>
     </div>
+    <button class="fold" id="fold" onclick="toggleSupport()" title="Свернуть">⌃</button>
   </section>
 
   <footer>
@@ -298,7 +313,6 @@ function render(s) {
   S = s;
   $("ver").textContent = "v" + s.version;
   if (!capturing) $("key").textContent = s.key_label;
-  $("language").value = s.config.language;
   document.querySelectorAll(".seg").forEach(seg => {
     const v = s.config[seg.dataset.key];
     seg.querySelectorAll("button").forEach(b => {
@@ -341,6 +355,8 @@ function render(s) {
     $("rec-btn").style.display = same ? "none" : "";
   }
   $("update").classList.toggle("show", !!s.update);
+  $("support").classList.toggle("compact", !!s.config.support_collapsed);
+  $("fold").title = s.config.support_collapsed ? "Развернуть" : "Свернуть";
   if (s.update) $("upd-ver").textContent = s.update[0];
 }
 
@@ -349,7 +365,6 @@ async function set(k, v) { S.config[k] = v; render(await api.set(k, v)); }
 
 document.querySelectorAll(".seg button").forEach(b => b.onclick = () => set(b.closest(".seg").dataset.key, b.dataset.v));
 document.querySelectorAll(".sw").forEach(sw => sw.onclick = () => set(sw.dataset.key, !sw.classList.contains("on")));
-$("language").onchange = e => set("language", e.target.value);
 let t1, t2;
 $("api_key").oninput = e => { clearTimeout(t1); t1 = setTimeout(() => api.set_api_key(e.target.value), 400); };
 $("cleanup_model").oninput = e => { clearTimeout(t2); t2 = setTimeout(() => set("cleanup_model", e.target.value.trim()), 400); };
@@ -377,6 +392,7 @@ window.addEventListener("keydown", e => {
   if (name) { api.set("hotkey", name).then(() => stopCapture()); }
 }, true);
 
+function toggleSupport() { set("support_collapsed", !S.config.support_collapsed); }
 function applyRec() { api.apply_recommended().then(render); }
 function downloadCuda() { api.download_cuda().then(render); }
 function sheet(on) { document.body.classList.toggle("sheet-open", on); }
