@@ -147,6 +147,7 @@ class SettingsApi:
             "version": engine.VERSION, "config": cfg, "stats": stats.data, "api_key": engine.get_api_key(),
             "status": st.get("status", "Программа не запущена"), "engine": st.get("engine"), "update": st.get("update"),
             "download": st.get("download"),
+            "models": [{"name": m, "mb": size >> 20} for m, size in engine.downloaded_models()],
             "key_label": engine.key_label(config["hotkey"]), "has_nvidia": self.has_nvidia,
             "cuda_ready": engine.cuda_ready(), "cuda_progress": self.cuda_progress, "rec": self.rec,
         }
@@ -158,6 +159,12 @@ class SettingsApi:
             set_autostart(bool(value))
         config.update(**{key: value})
         signal(CONFIG_EVENT)
+        return self.get_state()
+
+    def delete_model(self, model):
+        in_use = (read_status().get("engine") or [None, None])[1]
+        if model in engine.MODELS and model != in_use:
+            engine.delete_model(model)
         return self.get_state()
 
     def set_api_key(self, value):

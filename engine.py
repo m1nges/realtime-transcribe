@@ -19,7 +19,7 @@ import numpy as np
 log = logging.getLogger("dictate")
 
 APP = "Dictate"
-VERSION = "1.0.5"
+VERSION = "1.0.6"
 REPO = "m1nges/realtime-transcribe"
 REG_KEY = r"Software\Dictate"
 DEFAULT_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home())) / APP
@@ -278,6 +278,26 @@ def download_model(model, progress=lambda done, total: None):
         done_flag.set()
     progress(total, total)
     return dst
+
+
+def downloaded_models():
+    """[(имя, байт)] — модели, которые лежат на диске."""
+    out = []
+    for m in MODELS:
+        p = model_path(m)
+        if p:
+            root_dir = MODELS_DIR / m if p == MODELS_DIR / m else p.parent.parent
+            out.append((m, _dir_size(root_dir)))
+    return out
+
+
+def delete_model(model):
+    """Удаляет модель с диска (и новое место, и старый кэш Hugging Face). Только внутри папки моделей."""
+    import shutil
+    targets = [MODELS_DIR / model, MODELS_DIR / ("models--" + model_repo(model).replace("/", "--"))]
+    for t in targets:
+        if t.exists() and t.resolve().parent == MODELS_DIR.resolve():
+            shutil.rmtree(t)
 
 
 class Transcriber:
