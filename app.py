@@ -20,6 +20,7 @@ os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")
 os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
 os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
 os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
+os.environ.setdefault("HF_HUB_DISABLE_XET", "1")  # обычное скачивание: файлы растут на месте, прогресс видно
 
 import engine  # noqa: E402
 from engine import config, stats, log  # noqa: E402
@@ -162,6 +163,7 @@ class App:
         self.jobs = queue.Queue()
         self.tray = None
         self.update = None  # (версия, ссылка), если вышла новая
+        self.download = None  # (скачано, всего) байт, пока качается модель
 
         threading.Thread(target=self._worker, daemon=True).start()
         self.hotkey = Hotkey(self)
@@ -182,14 +184,23 @@ class App:
         def load():
             dev, model = engine.pick_engine()
             where = "видеокарте" if dev == "cuda" else "процессоре"
-            cached = any(engine.MODELS_DIR.glob(f"models--*faster-whisper-{model}"))
-            self.set_status(f"Загружаю модель {model}…" if cached else
-                            f"Скачиваю модель {model} (один раз)…")
+            path = engine.model_path(model)
+            cached = path is not None
             if not cached:
-                self.notify(f"Скачиваю модель распознавания {model}. Это один раз, пару минут.")
+                self.notify(f"Скачиваю модель распознавания ({engine.MODEL_SIZE_MB.get(model, 1000)} МБ). "
+                            "Это один раз — прогресс видно в настройках и на значке в трее.")
+                try:
+                    path = engine.download_model(model, self._download_progress)
+                except Exception as e:
+                    log.exception("Модель не скачалась")
+                    self.download = None
+                    self.set_status(f"Ошибка: модель не скачалась ({e}). Проверь интернет и перезапусти.")
+                    return
+                self.download = None
+            self.set_status(f"Загружаю модель {model}…")
             try:
                 self.transcriber = None
-                self.transcriber = engine.Transcriber(dev, model)
+                self.transcriber = engine.Transcriber(dev, model, path)
             except Exception as e:
                 log.exception("Модель не загрузилась")
                 if dev == "cuda":
@@ -205,6 +216,17 @@ class App:
                 self.notify(f"Готово! Держи «{key_label(config['hotkey'])}» и говори.")
 
         threading.Thread(target=load, daemon=True).start()
+
+    def _download_progress(self, done, total):
+        self.download = (done, total)
+        pct = done * 100 // total if total else 0
+        text = f"Скачиваю модель: {pct}% — {done >> 20} из {total >> 20} МБ"
+        if text != self.status:
+            self.set_status(text)
+            if self.tray:
+                self.tray.title = f"Диктовка — скачиваю модель {pct}%"
+        if pct >= 100 and self.tray:
+            self.tray.title = f"Диктовка {engine.VERSION}"
 
     def on_config_changed(self):
         """Окно настроек что-то поменяло: перечитываем и, если нужно, перезагружаем модель."""
@@ -243,7 +265,8 @@ class App:
     def _write_status(self):
         # окно настроек читает это, чтобы показать, на чём сейчас работаем
         t = self.transcriber
-        data = {"status": self.status, "engine": [t.device, t.name] if t else None, "update": self.update}
+        data = {"status": self.status, "engine": [t.device, t.name] if t else None, "update": self.update,
+                "download": self.download}
         try:
             engine.STATUS_FILE.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
         except OSError:
@@ -258,7 +281,11 @@ class App:
     # --- клавиша
     def on_start(self):
         if not self.transcriber:
-            self.overlay.set("error", "Модель ещё грузится")
+            if self.download and self.download[1]:
+                pct = self.download[0] * 100 // self.download[1]
+                self.overlay.set("error", f"Модель качается · {pct}%")
+            else:
+                self.overlay.set("error", "Модель ещё грузится")
             return
         try:
             self.rec.start()

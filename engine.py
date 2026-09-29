@@ -19,7 +19,7 @@ import numpy as np
 log = logging.getLogger("dictate")
 
 APP = "Dictate"
-VERSION = "1.0.4"
+VERSION = "1.0.5"
 REPO = "m1nges/realtime-transcribe"
 REG_KEY = r"Software\Dictate"
 DEFAULT_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home())) / APP
@@ -216,19 +216,83 @@ def download_cuda(progress=lambda done, total: None):
 
 # ---------------------------------------------------------------- распознавание
 
+# ---------------------------------------------------------------- модели: где лежат и как скачать
+
+MODEL_FILES = ["config.json", "preprocessor_config.json", "model.bin", "tokenizer.json", "vocabulary.*"]
+MODEL_SIZE_MB = {"small": 486, "medium": 1530, "large-v3-turbo": 1620}  # запасной вариант, если API не ответит
+
+
+def model_repo(model):
+    from faster_whisper.utils import _MODELS
+    return _MODELS.get(model, model)
+
+
+def model_path(model):
+    """Готовая модель на диске или None. Сначала новое место (обычные файлы), потом старый кэш Hugging Face."""
+    p = MODELS_DIR / model
+    if (p / "model.bin").exists():
+        return p
+    legacy = MODELS_DIR / ("models--" + model_repo(model).replace("/", "--")) / "snapshots"
+    for snap in legacy.glob("*"):
+        if (snap / "model.bin").exists():
+            return snap
+    return None
+
+
+def _dir_size(path):
+    total = 0
+    for dirpath, _, files in os.walk(path):
+        for f in files:
+            try:
+                total += os.path.getsize(os.path.join(dirpath, f))
+            except OSError:
+                pass
+    return total
+
+
+def download_model(model, progress=lambda done, total: None):
+    """Качает модель обычными файлами в models/<model>, с докачкой после обрыва. progress(байт, всего)."""
+    from huggingface_hub import HfApi, snapshot_download
+
+    repo = model_repo(model)
+    dst = MODELS_DIR / model
+    dst.mkdir(parents=True, exist_ok=True)
+    try:
+        info = HfApi().model_info(repo, files_metadata=True)
+        total = sum(s.size or 0 for s in info.siblings
+                    if any(Path(s.rfilename).match(p) for p in MODEL_FILES))
+    except Exception:
+        total = MODEL_SIZE_MB.get(model, 1000) * 1024 * 1024
+
+    done_flag = threading.Event()
+
+    def watch():
+        # файлы докачиваются в dst/.cache/..., так что размер папки — честный прогресс
+        while not done_flag.wait(0.5):
+            progress(min(_dir_size(dst), total), total)
+
+    threading.Thread(target=watch, daemon=True).start()
+    try:
+        snapshot_download(repo, local_dir=str(dst), allow_patterns=MODEL_FILES)
+    finally:
+        done_flag.set()
+    progress(total, total)
+    return dst
+
+
 class Transcriber:
-    def __init__(self, device, model, on_status=lambda s: None):
+    def __init__(self, device, model, path=None):
         from faster_whisper import WhisperModel
 
         MODELS_DIR.mkdir(parents=True, exist_ok=True)
-        on_status(f"Загружаю модель {model}…")
+        src = str(path or model_path(model) or model)
         if device == "cuda":
             add_cuda_path()
-            self.model = WhisperModel(model, device="cuda", compute_type="float16", download_root=str(MODELS_DIR))
+            self.model = WhisperModel(src, device="cuda", compute_type="float16", download_root=str(MODELS_DIR))
         else:
             # на процессоре берём половину ядер: так ноут не захлёбывается во время распознавания
             threads = max(2, (os.cpu_count() or 4) // 2)
-            self.model = WhisperModel(model, device="cpu", compute_type="int8", cpu_threads=threads,
+            self.model = WhisperModel(src, device="cpu", compute_type="int8", cpu_threads=threads,
                                       download_root=str(MODELS_DIR))
         self.device, self.name = device, model
         self.beam = 5 if device == "cuda" else 1

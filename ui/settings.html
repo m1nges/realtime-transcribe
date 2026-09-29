@@ -215,6 +215,8 @@ footer { display: flex; align-items: center; justify-content: space-between; col
     </div>
 
     <div class="status"><span class="dot" id="dot"></span><span id="status">…</span></div>
+    <div class="bar" id="dl-bar" style="display:none"><i></i></div>
+    <div class="hint" id="dl-hint" style="display:none">Это один раз. Можно закрыть окно — скачивание продолжится, а когда всё будет готово, придёт уведомление.</div>
 
     <div class="tip">
       <div class="t" id="rec-t">Смотрю, что за компьютер…</div>
@@ -330,6 +332,10 @@ function render(s) {
 
   $("status").textContent = s.status;
   $("dot").className = "dot" + (/Загружаю|Скачиваю|Запускаюсь/.test(s.status) ? " busy" : /Ошибка/.test(s.status) ? " err" : "");
+  const dl = s.download;
+  $("dl-bar").style.display = dl ? "" : "none";
+  $("dl-hint").style.display = dl ? "" : "none";
+  if (dl) $("dl-bar").firstElementChild.style.width = (dl[1] ? dl[0] * 100 / dl[1] : 0) + "%";
 
   // видеокарта: нужно ли скачать ускорение
   const gpu = $("gpu"), p = s.cuda_progress;

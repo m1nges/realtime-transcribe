@@ -146,6 +146,7 @@ class SettingsApi:
         return {
             "version": engine.VERSION, "config": cfg, "stats": stats.data, "api_key": engine.get_api_key(),
             "status": st.get("status", "Программа не запущена"), "engine": st.get("engine"), "update": st.get("update"),
+            "download": st.get("download"),
             "key_label": engine.key_label(config["hotkey"]), "has_nvidia": self.has_nvidia,
             "cuda_ready": engine.cuda_ready(), "cuda_progress": self.cuda_progress, "rec": self.rec,
         }
