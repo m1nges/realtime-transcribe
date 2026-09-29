@@ -19,7 +19,7 @@ import numpy as np
 log = logging.getLogger("dictate")
 
 APP = "Dictate"
-VERSION = "1.1.3"
+VERSION = "1.1.4"
 REPO = "m1nges/realtime-transcribe"
 REG_KEY = r"Software\Dictate"
 DEFAULT_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home())) / APP
@@ -303,6 +303,14 @@ def delete_model(model):
             shutil.rmtree(t)
 
 
+PUNCT_PROMPTS = {
+    "ru": "Привет! Слушай, я тут подумал: давай сделаем так, чтобы всё работало быстрее. Как тебе идея? "
+          "Если что, напиши, обсудим.",
+    "en": "Hi! Listen, I was thinking: let's make it work faster. What do you think? If anything, text me, "
+          "we'll discuss.",
+}
+
+
 class Transcriber:
     def __init__(self, device, model, path=None):
         from faster_whisper import WhisperModel
@@ -328,6 +336,8 @@ class Transcriber:
             beam_size=self.beam,
             vad_filter=True,
             condition_on_previous_text=False,
+            # пример текста с правильной пунктуацией: без него turbo-модель иногда выдаёт длинную речь вовсе без знаков
+            initial_prompt=PUNCT_PROMPTS.get(language),
         )
         return " ".join(s.text.strip() for s in segments).strip()
 
@@ -366,6 +376,10 @@ _CLAUSE_START = re.compile(r"(?:не|ни|я|ты|он|она|оно|мы|вы|�
                            re.IGNORECASE)
 
 
+# Перед противительными союзами в середине фразы запятая нужна всегда; Whisper её иногда теряет
+_CONJ_COMMA = re.compile(r"(?<=[а-яёa-z0-9])\s+(но|а|зато|однако)(?=\s)", re.IGNORECASE)
+
+
 def _drop_soft_filler(t):
     """Убирает первое обособленное слово-паразит. Возвращает новую строку или None, если убирать нечего."""
     for m in _SOFT_RE.finditer(t):
@@ -402,6 +416,7 @@ def cleanup_local(text):
             break
         t = nt
     t = _REPEAT_RE.sub(r"\1", t)
+    t = _CONJ_COMMA.sub(r", \1", t)  # «нравится но есть» → «нравится, но есть»
     t = re.sub(r"\s+([,.!?;:])", r"\1", t)
     t = re.sub(r"([,.!?;:])(?:\s*,)+", r"\1", t)   # «., » → «.»
     t = re.sub(r"^[\s,]+", "", t)
