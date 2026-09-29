@@ -187,17 +187,26 @@ class App:
             path = engine.model_path(model)
             cached = path is not None
             if not cached:
-                self.notify(f"Скачиваю модель распознавания ({engine.MODEL_SIZE_MB.get(model, 1000)} МБ). "
-                            "Это один раз — прогресс видно в настройках и на значке в трее.")
+                log.info("Модели %s нет в %s — скачиваю", model, engine.MODELS_DIR)
+                # уведомляем, только если скачивание правда идёт: если файлы уже на месте, проверка займёт секунды
+                started = threading.Event()
+
+                def announce():
+                    if not started.wait(3) and self.download and self.download[0] < self.download[1]:
+                        self.notify(f"Скачиваю модель распознавания ({self.download[1] >> 20} МБ). "
+                                    "Это один раз — прогресс видно в настройках и на значке в трее.")
+
+                threading.Thread(target=announce, daemon=True).start()
                 try:
                     path = engine.download_model(model, self._download_progress)
+                    started.set()
                 except Exception as e:
                     log.exception("Модель не скачалась")
                     self.download = None
                     self.set_status(f"Ошибка: модель не скачалась ({e}). Проверь интернет и перезапусти.")
                     return
                 self.download = None
-            self.set_status(f"Загружаю модель {model}…")
+            self.set_status("Запускаю распознавание…")  # модель уже на диске, поднимаем её в память
             try:
                 self.transcriber = None
                 self.transcriber = engine.Transcriber(dev, model, path)
@@ -273,6 +282,7 @@ class App:
             pass
 
     def notify(self, text):
+        log.info("Уведомление: %s", text)
         try:
             self.tray.notify(text, "Диктовка")
         except Exception:

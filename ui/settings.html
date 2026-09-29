@@ -355,7 +355,7 @@ function render(s) {
   $("stats").textContent = `Надиктовано: ${s.stats.dictations} фраз, ${(s.stats.audio_seconds / 60).toFixed(1)} мин`;
 
   $("status").textContent = s.status;
-  $("dot").className = "dot" + (/Загружаю|Скачиваю|Запускаюсь/.test(s.status) ? " busy" : /Ошибка/.test(s.status) ? " err" : "");
+  $("dot").className = "dot" + (/Запускаю|Скачиваю/.test(s.status) ? " busy" : /Ошибка/.test(s.status) ? " err" : "");
   const dl = s.download;
   $("dl-bar").style.display = dl ? "" : "none";
   $("dl-hint").style.display = dl ? "" : "none";
