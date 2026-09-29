@@ -6,3 +6,4 @@ keyboard
 pyperclip
 pillow
 pystray
+pywebview

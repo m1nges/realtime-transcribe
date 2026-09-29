@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Установка Диктовки</title>
+<style>
+:root { --bg: #f5f4f9; --card: #ffffff; --card2: #f0eef7; --fg: #1b1a22; --dim: #6c6780; --line: #e4e1ee;
+  --accent: #6d4cf5; --accent2: #e0489a; --warn: #c8325f; }
+@media (prefers-color-scheme: dark) { :root { --bg: #131218; --card: #1c1a23; --card2: #24212d; --fg: #eeecf5;
+  --dim: #9893aa; --line: #2d2a38; --accent: #8b6cff; --accent2: #ff5ca8; --warn: #ff7a9c; } }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
+  font: 14px/1.45 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; user-select: none; overflow: hidden; }
+body { opacity: 0; transform: translateY(6px); transition: opacity .28s, transform .28s cubic-bezier(.2,.8,.2,1); }
+body.ready { opacity: 1; transform: none; }
+.wrap { padding: 28px 28px 22px; height: 100%; display: flex; flex-direction: column; }
+.logo { width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; margin-bottom: 16px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2)); box-shadow: 0 6px 20px rgba(139,108,255,.35); }
+.logo i { display: inline-block; width: 4px; margin: 0 2px; border-radius: 2px; background: #fff; }
+h1 { margin: 0 0 6px; font: 600 22px "Segoe UI Variable Display", "Segoe UI", sans-serif; }
+p { margin: 0 0 20px; color: var(--dim); }
+label.t { display: block; font-size: 12px; color: var(--dim); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+.pick { display: flex; gap: 8px; }
+input { flex: 1; font: inherit; color: var(--fg); background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 9px 12px; outline: none; transition: border-color .2s; }
+input:focus { border-color: var(--accent); }
+.final { font-size: 12.5px; color: var(--dim); margin-top: 8px; min-height: 18px; }
+.final b { color: var(--fg); font-weight: 600; }
+.sw { display: flex; align-items: center; gap: 12px; cursor: pointer; margin-top: 16px; }
+.toggle { flex: none; width: 40px; height: 22px; border-radius: 11px; background: var(--card2); border: 1.5px solid var(--dim); position: relative; transition: .2s; }
+.toggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 13px; height: 13px; border-radius: 50%; background: var(--dim);
+  transition: transform .22s cubic-bezier(.2,.8,.2,1), background .2s; }
+.sw.on .toggle { background: var(--accent); border-color: var(--accent); }
+.sw.on .toggle::after { transform: translateX(18px); background: #fff; }
+.note { margin-top: 18px; padding: 12px 14px; border-radius: 12px; background: var(--card2); border: 1px solid var(--line); color: var(--dim); font-size: 12.5px; }
+.bottom { margin-top: auto; display: flex; align-items: center; gap: 10px; }
+.err { color: var(--warn); font-size: 13px; flex: 1; }
+.btn { font: inherit; font-weight: 600; border: 0; border-radius: 10px; padding: 9px 18px; cursor: pointer; color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent2)); transition: transform .12s, filter .2s, opacity .2s; }
+.btn:hover { filter: brightness(1.08); } .btn:active { transform: scale(.97); } .btn:disabled { opacity: .5; cursor: default; }
+.btn.ghost { background: var(--card); color: var(--fg); border: 1px solid var(--line); }
+.done { display: none; text-align: center; margin: auto; }
+.done .ok { font-size: 40px; }
+body.installed .form { display: none; } body.installed .done { display: block; animation: pop .35s ease; }
+@keyframes pop { from { opacity: 0; transform: scale(.96); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="form" style="display:flex;flex-direction:column;height:100%">
+    <div class="logo"><span><i style="height:10px"></i><i style="height:20px"></i><i style="height:26px"></i><i style="height:20px"></i><i style="height:10px"></i></span></div>
+    <h1>Установка Диктовки</h1>
+    <p>Выбери, куда поставить программу. Там же будут лежать модели распознавания (от 0.5 до 1.6 ГБ) и настройки.</p>
+
+    <label class="t">Папка</label>
+    <div class="pick">
+      <input id="path" spellcheck="false">
+      <button class="btn ghost" onclick="pick()">Выбрать…</button>
+    </div>
+    <div class="final" id="final"></div>
+
+    <div class="sw on" id="autostart"><div class="toggle"></div><div>Запускать вместе с Windows</div></div>
+    <div class="sw" id="desktop"><div class="toggle"></div><div>Ярлык на рабочем столе</div></div>
+
+    <div class="note">Ярлык появится в меню «Пуск». Удалить программу можно как обычно: Параметры → Приложения → Диктовка.</div>
+
+    <div class="bottom">
+      <div class="err" id="err"></div>
+      <button class="btn ghost" onclick="api.close()">Отмена</button>
+      <button class="btn" id="go" onclick="install()">Установить</button>
+    </div>
+  </div>
+  <div class="done">
+    <div class="ok">✓</div>
+    <h1>Готово</h1>
+    <p id="done-text"></p>
+  </div>
+</div>
+<script>
+let api;
+const $ = id => document.getElementById(id);
+document.querySelectorAll(".sw").forEach(sw => sw.onclick = () => sw.classList.toggle("on"));
+async function showFinal() { $("final").innerHTML = "Будет установлено в <b>" + (await api.final_dir($("path").value)) + "</b>"; }
+$("path").oninput = showFinal;
+async function pick() { const d = await api.pick_dir($("path").value); if (d) { $("path").value = d; showFinal(); } }
+async function install() {
+  $("go").disabled = true; $("go").textContent = "Ставлю…"; $("err").textContent = "";
+  const r = await api.install($("path").value, $("desktop").classList.contains("on"), $("autostart").classList.contains("on"));
+  if (r.ok) { $("done-text").textContent = "Диктовка установлена в " + r.path + " и уже запущена. Значок — в трее, рядом с часами."; document.body.classList.add("installed"); }
+  else { $("err").textContent = r.error; $("go").disabled = false; $("go").textContent = "Установить"; }
+}
+window.addEventListener("pywebviewready", async () => {
+  api = window.pywebview.api;
+  $("path").value = await api.default_dir();
+  await showFinal();
+  requestAnimationFrame(() => { document.body.classList.add("ready"); api.shown(); });
+});
+</script>
+</body>
+</html>

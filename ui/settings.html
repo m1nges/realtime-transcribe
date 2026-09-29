@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Диктовка — настройки</title>
+<style>
+:root {
+  --bg: #f5f4f9; --card: #ffffff; --card2: #f0eef7; --fg: #1b1a22; --dim: #6c6780; --line: #e4e1ee;
+  --accent: #6d4cf5; --accent2: #e0489a; --on-accent: #fff; --warn: #c8325f; --ok: #178a5c;
+  --shadow: 0 1px 2px rgba(20,10,60,.06), 0 4px 16px rgba(20,10,60,.05);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #131218; --card: #1c1a23; --card2: #24212d; --fg: #eeecf5; --dim: #9893aa; --line: #2d2a38;
+    --accent: #8b6cff; --accent2: #ff5ca8; --warn: #ff7a9c; --ok: #4fd49a;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.25);
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
+  font: 14px/1.45 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+body { overflow: hidden; user-select: none; opacity: 0; transform: translateY(6px);
+  transition: opacity .28s ease, transform .28s cubic-bezier(.2,.8,.2,1); }
+body.ready { opacity: 1; transform: none; }
+.scroll { height: 100%; overflow-y: auto; padding: 22px 22px 18px; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+
+header { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+.logo { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center;
+  background: linear-gradient(135deg, var(--accent), var(--accent2)); box-shadow: 0 4px 14px rgba(139,108,255,.35); }
+.logo i { display: inline-block; width: 3px; margin: 0 1.5px; border-radius: 2px; background: #fff; }
+h1 { font: 600 19px "Segoe UI Variable Display", "Segoe UI", sans-serif; margin: 0; }
+.sub { color: var(--dim); font-size: 12.5px; }
+.ver { margin-left: auto; color: var(--dim); font-size: 12px; background: var(--card2); padding: 3px 9px; border-radius: 99px; }
+
+.banner { display: none; align-items: center; gap: 10px; padding: 10px 14px; margin-bottom: 12px; border-radius: 12px;
+  background: linear-gradient(135deg, rgba(139,108,255,.16), rgba(255,92,168,.14)); border: 1px solid rgba(139,108,255,.3); }
+.banner.show { display: flex; animation: pop .3s ease; }
+.banner b { font-weight: 600; }
+.banner .btn { margin-left: auto; }
+
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin-bottom: 12px; box-shadow: var(--shadow); }
+.card h2 { margin: 0 0 12px; font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); font-weight: 600; }
+.row { display: flex; align-items: center; gap: 12px; }
+.row + .row { margin-top: 12px; }
+.label { width: 104px; flex: none; color: var(--fg); }
+.hint { color: var(--dim); font-size: 12.5px; margin-top: 8px; }
+
+/* клавиша */
+.key { min-width: 124px; text-align: center; padding: 8px 14px; border-radius: 10px; background: var(--card2);
+  border: 1px solid var(--line); font-weight: 600; font-size: 15px; transition: all .2s; }
+.key.capturing { border-color: var(--accent); color: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
+
+/* сегменты */
+.seg { display: flex; flex: 1; background: var(--card2); border-radius: 10px; padding: 3px; position: relative; border: 1px solid var(--line); }
+.seg button { flex: 1; border: 0; background: transparent; color: var(--dim); font: inherit; font-size: 13px; padding: 6px 4px;
+  border-radius: 7px; cursor: pointer; position: relative; z-index: 1; transition: color .2s; white-space: nowrap; }
+.seg button:hover { color: var(--fg); }
+.seg button.on { color: var(--fg); font-weight: 600; }
+.seg button:disabled { opacity: .35; cursor: default; }
+.seg .thumb { position: absolute; top: 3px; bottom: 3px; border-radius: 7px; background: var(--card);
+  box-shadow: 0 1px 3px rgba(0,0,0,.18); transition: left .25s cubic-bezier(.2,.8,.2,1), width .25s cubic-bezier(.2,.8,.2,1); }
+@media (prefers-color-scheme: dark) { .seg .thumb { background: #34303f; } }
+
+select { flex: 1; font: inherit; color: var(--fg); background: var(--card2); border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; outline: none; }
+select:focus, input:focus { border-color: var(--accent); }
+
+/* статус и совет */
+.status { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 13px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px rgba(79,212,154,.18); flex: none; }
+.dot.busy { background: var(--accent); box-shadow: 0 0 0 3px rgba(139,108,255,.2); animation: pulse 1s infinite; }
+.dot.err { background: var(--warn); }
+.tip { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: var(--card2); border: 1px solid var(--line); }
+.tip .t { font-weight: 600; }
+.tip .w { color: var(--dim); font-size: 12.5px; margin-top: 2px; }
+.tip .actions { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+.link { color: var(--accent); cursor: pointer; font-weight: 600; font-size: 13px; background: none; border: 0; padding: 0; font-family: inherit; }
+.link:hover { text-decoration: underline; }
+
+.gpu { margin-top: 12px; display: none; }
+.gpu.show { display: block; }
+.bar { height: 6px; border-radius: 3px; background: var(--card2); overflow: hidden; margin-top: 8px; }
+.bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width .3s; }
+
+/* переключатели */
+.sw { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; }
+.sw + .sw, .sw + .collapse, .collapse + .sw { margin-top: 14px; }
+.toggle { flex: none; width: 40px; height: 22px; border-radius: 11px; background: var(--card2); border: 1.5px solid var(--dim);
+  position: relative; transition: background .2s, border-color .2s; margin-top: 1px; }
+.toggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 13px; height: 13px; border-radius: 50%;
+  background: var(--dim); transition: transform .22s cubic-bezier(.2,.8,.2,1), background .2s, width .15s; }
+.sw.on .toggle { background: var(--accent); border-color: var(--accent); }
+.sw.on .toggle::after { transform: translateX(18px); background: #fff; }
+.sw:active .toggle::after { width: 16px; }
+.sw .txt b { font-weight: 500; }
+.sw .txt div { color: var(--dim); font-size: 12.5px; margin-top: 2px; }
+
+.collapse { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .3s cubic-bezier(.2,.8,.2,1), opacity .3s; opacity: 0; }
+.collapse.open { grid-template-rows: 1fr; opacity: 1; }
+.collapse > div { overflow: hidden; }
+.inner { padding: 12px 0 2px 52px; }
+input[type=password], input[type=text] { width: 100%; font: inherit; color: var(--fg); background: var(--card2); border: 1px solid var(--line);
+  border-radius: 10px; padding: 7px 10px; outline: none; transition: border-color .2s; }
+.field + .field { margin-top: 10px; }
+.field label { display: block; font-size: 12px; color: var(--dim); margin-bottom: 4px; }
+.spent { margin-top: 10px; font-weight: 600; }
+
+.btn { font: inherit; font-weight: 600; font-size: 13px; border: 0; border-radius: 9px; padding: 7px 14px; cursor: pointer;
+  background: linear-gradient(135deg, var(--accent), var(--accent2)); color: var(--on-accent); transition: transform .12s, filter .2s, opacity .2s; }
+.btn:hover { filter: brightness(1.08); }
+.btn:active { transform: scale(.97); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.ghost { background: var(--card2); color: var(--fg); border: 1px solid var(--line); }
+
+.support { position: relative; display: flex; gap: 14px; align-items: center; padding: 14px 16px; margin-bottom: 12px; border-radius: 14px;
+  background: linear-gradient(135deg, rgba(139,108,255,.10), rgba(255,92,168,.10)); border: 1px solid rgba(139,108,255,.28); }
+.support .heart { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-size: 17px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; }
+.support .body { flex: 1; font-size: 12.5px; color: var(--dim); }
+.support .body b { display: block; color: var(--fg); font-size: 13.5px; margin-bottom: 2px; }
+.support .side { flex: none; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.support .qr { width: 58px; height: 58px; border-radius: 8px; cursor: zoom-in; background: #fff; padding: 3px; transition: transform .2s; }
+.support .qr:hover { transform: scale(1.05); }
+.qr-big { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: rgba(10,8,20,.6); opacity: 0; pointer-events: none; transition: opacity .25s; cursor: zoom-out; }
+.qr-big img { width: 260px; height: 260px; background: #fff; padding: 10px; border-radius: 18px; transform: scale(.92); transition: transform .3s cubic-bezier(.2,.8,.2,1); box-shadow: 0 20px 60px rgba(0,0,0,.4); }
+.qr-big div { color: #fff; margin-top: 12px; text-align: center; font-size: 13px; }
+.qr-open .qr-big { opacity: 1; pointer-events: auto; }
+.qr-open .qr-big img { transform: none; }
+
+footer { display: flex; align-items: center; justify-content: space-between; color: var(--dim); font-size: 12px; padding: 4px 4px 0; }
+
+/* шпаргалка — панель поверх, окно не растёт */
+.sheet-bg { position: fixed; inset: 0; z-index: 50; background: rgba(10,8,20,.45); opacity: 0; pointer-events: none; transition: opacity .25s; }
+.sheet { position: fixed; z-index: 51; left: 14px; right: 14px; bottom: 14px; max-height: 82%; overflow-y: auto; background: var(--card); border: 1px solid var(--line);
+  border-radius: 16px; padding: 18px 20px; box-shadow: 0 20px 60px rgba(0,0,0,.35); transform: translateY(24px); opacity: 0; pointer-events: none;
+  transition: transform .3s cubic-bezier(.2,.8,.2,1), opacity .25s; }
+.sheet-open .sheet-bg { opacity: 1; pointer-events: auto; }
+.sheet-open .sheet { transform: none; opacity: 1; pointer-events: auto; }
+.sheet h3 { margin: 0 0 12px; font-size: 16px; }
+.sheet .item { display: flex; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.sheet .item:first-of-type { border-top: 0; }
+.sheet .who { flex: 1; }
+.sheet .what { flex: none; text-align: right; font-weight: 600; font-size: 13px; }
+.sheet .what span { display: block; color: var(--dim); font-weight: 400; font-size: 12px; }
+.sheet .close { float: right; }
+
+@keyframes pulse { 50% { opacity: .55; } }
+@keyframes pop { from { opacity: 0; transform: translateY(-4px); } }
+</style>
+</head>
+<body>
+<div class="scroll">
+  <header>
+    <div class="logo"><span><i style="height:8px"></i><i style="height:15px"></i><i style="height:19px"></i><i style="height:15px"></i><i style="height:8px"></i></span></div>
+    <div>
+      <h1>Диктовка</h1>
+      <div class="sub">Держи клавишу и говори — текст вставится туда, где курсор</div>
+    </div>
+    <div class="ver" id="ver"></div>
+  </header>
+
+  <div class="banner" id="update">
+    <span>Вышла версия <b id="upd-ver"></b></span>
+    <button class="btn" onclick="api.open_update()">Скачать</button>
+  </div>
+
+  <section class="card">
+    <h2>Клавиша записи</h2>
+    <div class="row">
+      <div class="key" id="key">…</div>
+      <button class="btn ghost" id="key-btn" onclick="captureKey()">Назначить</button>
+    </div>
+    <div class="hint" id="key-hint">Зажми и держи, пока говоришь. Отпустил — текст вставился. Сочетания вроде Ctrl+C работают как обычно.</div>
+  </section>
+
+  <section class="card">
+    <h2>Распознавание</h2>
+    <div class="row"><div class="label">Язык</div>
+      <select id="language">
+        <option value="ru">Русский</option><option value="en">English</option>
+        <option value="uk">Українська</option><option value="auto">Определять сам</option>
+      </select>
+    </div>
+    <div class="row"><div class="label">Где считать</div>
+      <div class="seg" data-key="device">
+        <button data-v="auto">Авто</button><button data-v="cuda">Видеокарта</button><button data-v="cpu">Процессор</button>
+      </div>
+    </div>
+    <div class="row"><div class="label">Модель</div>
+      <div class="seg" data-key="model">
+        <button data-v="auto">Авто</button><button data-v="small">Быстрая</button>
+        <button data-v="medium">Средняя</button><button data-v="large-v3-turbo">Точная</button>
+      </div>
+    </div>
+
+    <div class="gpu" id="gpu">
+      <div class="row">
+        <div style="flex:1" id="gpu-text"></div>
+        <button class="btn" id="gpu-btn" onclick="downloadCuda()">Скачать</button>
+      </div>
+      <div class="bar" id="gpu-bar" style="display:none"><i></i></div>
+    </div>
+
+    <div class="status"><span class="dot" id="dot"></span><span id="status">…</span></div>
+
+    <div class="tip">
+      <div class="t" id="rec-t">Смотрю, что за компьютер…</div>
+      <div class="w" id="rec-w"></div>
+      <div class="actions">
+        <button class="btn" id="rec-btn" style="display:none" onclick="applyRec()">Применить совет</button>
+        <button class="link" onclick="sheet(true)">Как выбрать?</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Чистка текста</h2>
+    <div class="sw" data-key="cleanup_local">
+      <div class="toggle"></div>
+      <div class="txt"><b>Убирать слова-паразиты</b><div>«ну», «типа», «короче», «э-э», повторы. Бесплатно, прямо на компьютере.</div></div>
+    </div>
+    <div class="sw" data-key="cleanup_openrouter">
+      <div class="toggle"></div>
+      <div class="txt"><b>Умная чистка через OpenRouter</b><div>Нейросеть лучше убирает оговорки и ставит знаки. Платно, текст уходит в интернет.</div></div>
+    </div>
+    <div class="collapse" id="or-box"><div><div class="inner">
+      <div class="field"><label>Твой ключ (с <a class="link" onclick="api.open_url('https://openrouter.ai/keys')">openrouter.ai/keys</a>)</label>
+        <input type="password" id="api_key" placeholder="sk-or-…" spellcheck="false"></div>
+      <div class="field"><label>Модель</label><input type="text" id="cleanup_model" spellcheck="false"></div>
+      <div class="hint">Стоит доли цента за фразу. Если сервер не ответит за 3 секунды, текст почистится обычным способом.</div>
+      <div class="spent" id="spent"></div>
+    </div></div></div>
+  </section>
+
+  <section class="card">
+    <h2>Прочее</h2>
+    <div class="sw" data-key="autostart">
+      <div class="toggle"></div>
+      <div class="txt"><b>Запускать вместе с Windows</b></div>
+    </div>
+    <div class="sw" data-key="check_updates">
+      <div class="toggle"></div>
+      <div class="txt"><b>Сообщать о новых версиях</b><div>Раз в сутки спрашиваю у GitHub номер последней версии. Сам ничего не скачиваю.</div></div>
+    </div>
+  </section>
+
+  <section class="support">
+    <div class="heart">♥</div>
+    <div class="body">
+      <b>Поддержать разработчика</b>
+      Программа полностью бесплатная. Если она вам понравилась, расскажите о ней друзьям — пусть разлетается.
+      Я молодой парень и делаю приложения в кайф, а не на продажу. Если захотите поддержать — вот сбор в Т-Банке, можно и по QR.
+    </div>
+    <div class="side">
+      <img class="qr" src="qr.png" alt="QR" onclick="document.body.classList.add('qr-open')">
+      <button class="btn" onclick="api.open_url('https://t.tb.ru/pm_short/9xhlkJcgsW5')">Поддержать</button>
+    </div>
+  </section>
+
+  <footer>
+    <span id="stats"></span>
+    <span>Закрой окно — программа останется в трее</span>
+  </footer>
+</div>
+
+<div class="qr-big" onclick="document.body.classList.remove('qr-open')">
+  <div><img src="qr.png" alt="QR"><div>Наведи камеру телефона · клик — закрыть</div></div>
+</div>
+
+<div class="sheet-bg" onclick="sheet(false)"></div>
+<div class="sheet">
+  <button class="btn ghost close" onclick="sheet(false)">Понятно</button>
+  <h3>Как выбрать</h3>
+  <div class="item"><div class="who">Видеокарта NVIDIA (GeForce, RTX) с 4 ГБ памяти и больше</div><div class="what">Видеокарта<span>Точная</span></div></div>
+  <div class="item"><div class="who">NVIDIA, но памяти меньше 4 ГБ</div><div class="what">Видеокарта<span>Быстрая</span></div></div>
+  <div class="item"><div class="who">Видеокарта AMD или Intel, встроенная графика — программа их не использует</div><div class="what">Процессор<span>Быстрая</span></div></div>
+  <div class="item"><div class="who">Мощный процессор (8+ ядер) без NVIDIA</div><div class="what">Процессор<span>Быстрая или Средняя</span></div></div>
+  <div class="item"><div class="who">Слабый ноутбук</div><div class="what">Процессор<span>Быстрая</span></div></div>
+  <div class="item"><div class="who">Не уверен</div><div class="what">Авто<span>Авто</span></div></div>
+  <div class="hint">Модель скачивается один раз при первом выборе: быстрая ~460 МБ, средняя и точная ~1.5 ГБ.</div>
+</div>
+
+<script>
+let api, S = {}, capturing = false;
+const $ = id => document.getElementById(id);
+const DEV = { auto: "Авто", cuda: "Видеокарта", cpu: "Процессор" };
+const MOD = { auto: "Авто", small: "Быстрая", medium: "Средняя", "large-v3-turbo": "Точная" };
+
+function placeThumb(seg) {
+  let th = seg.querySelector(".thumb");
+  if (!th) { th = document.createElement("div"); th.className = "thumb"; seg.prepend(th); }
+  const on = seg.querySelector("button.on");
+  if (!on) return;
+  th.style.left = on.offsetLeft + "px";
+  th.style.width = on.offsetWidth + "px";
+}
+
+function render(s) {
+  S = s;
+  $("ver").textContent = "v" + s.version;
+  if (!capturing) $("key").textContent = s.key_label;
+  $("language").value = s.config.language;
+  document.querySelectorAll(".seg").forEach(seg => {
+    const v = s.config[seg.dataset.key];
+    seg.querySelectorAll("button").forEach(b => {
+      b.classList.toggle("on", b.dataset.v === v);
+      if (seg.dataset.key === "device" && b.dataset.v === "cuda") b.disabled = !s.has_nvidia;
+    });
+    placeThumb(seg);
+  });
+  document.querySelectorAll(".sw").forEach(sw => sw.classList.toggle("on", !!s.config[sw.dataset.key]));
+  $("or-box").classList.toggle("open", !!s.config.cleanup_openrouter);
+  if (document.activeElement !== $("api_key")) $("api_key").value = s.api_key;
+  if (document.activeElement !== $("cleanup_model")) $("cleanup_model").value = s.config.cleanup_model;
+  $("spent").textContent = `Потрачено: $${s.stats.openrouter_usd.toFixed(4)} · ${s.stats.openrouter_requests} запросов`;
+  $("stats").textContent = `Надиктовано: ${s.stats.dictations} фраз, ${(s.stats.audio_seconds / 60).toFixed(1)} мин`;
+
+  $("status").textContent = s.status;
+  $("dot").className = "dot" + (/Загружаю|Скачиваю|Запускаюсь/.test(s.status) ? " busy" : /Ошибка/.test(s.status) ? " err" : "");
+
+  // видеокарта: нужно ли скачать ускорение
+  const gpu = $("gpu"), p = s.cuda_progress;
+  const needGpu = s.has_nvidia && !s.cuda_ready && (s.config.device !== "cpu");
+  gpu.classList.toggle("show", !!(needGpu || p));
+  if (p && p.error) {
+    $("gpu-text").textContent = "Не получилось скачать: " + p.error; $("gpu-btn").textContent = "Ещё раз";
+    $("gpu-btn").style.display = ""; $("gpu-bar").style.display = "none";
+  } else if (p) {
+    $("gpu-text").textContent = `Качаю ускорение для видеокарты… ${p.total ? Math.floor(p.done * 100 / p.total) + "%" : ""}`;
+    $("gpu-btn").style.display = "none"; $("gpu-bar").style.display = "";
+    $("gpu-bar").firstElementChild.style.width = (p.total ? p.done * 100 / p.total : 0) + "%";
+  } else if (needGpu) {
+    $("gpu-text").textContent = "Чтобы считать на видеокарте, нужно один раз скачать ускорение (553 МБ). Будет в 5–10 раз быстрее.";
+    $("gpu-btn").textContent = "Скачать"; $("gpu-btn").style.display = ""; $("gpu-bar").style.display = "none";
+  }
+
+  if (s.rec) {
+    $("rec-t").textContent = `Совет: ${DEV[s.rec.device]} + ${MOD[s.rec.model]}`;
+    $("rec-w").textContent = `${s.rec.why} Твой компьютер: ${s.rec.hw}.`;
+    const same = (s.config.device === s.rec.device && s.config.model === s.rec.model) ||
+                 (s.engine && s.engine[0] === s.rec.device && s.engine[1] === s.rec.model);
+    $("rec-btn").style.display = same ? "none" : "";
+  }
+  $("update").classList.toggle("show", !!s.update);
+  if (s.update) $("upd-ver").textContent = s.update[0];
+}
+
+async function refresh() { render(await api.get_state()); }
+async function set(k, v) { S.config[k] = v; render(await api.set(k, v)); }
+
+document.querySelectorAll(".seg button").forEach(b => b.onclick = () => set(b.closest(".seg").dataset.key, b.dataset.v));
+document.querySelectorAll(".sw").forEach(sw => sw.onclick = () => set(sw.dataset.key, !sw.classList.contains("on")));
+$("language").onchange = e => set("language", e.target.value);
+let t1, t2;
+$("api_key").oninput = e => { clearTimeout(t1); t1 = setTimeout(() => api.set_api_key(e.target.value), 400); };
+$("cleanup_model").oninput = e => { clearTimeout(t2); t2 = setTimeout(() => set("cleanup_model", e.target.value.trim()), 400); };
+
+// назначение клавиши: ловим следующее нажатие прямо в окне
+const CODES = { ControlRight: "right ctrl", ControlLeft: "left ctrl", AltRight: "right alt", AltLeft: "left alt",
+  ShiftRight: "right shift", ShiftLeft: "left shift", CapsLock: "caps lock", ScrollLock: "scroll lock", Pause: "pause",
+  Insert: "insert", ContextMenu: "menu", MetaRight: "right windows", Space: "space", Home: "home", End: "end" };
+function captureKey() {
+  capturing = true;
+  $("key").textContent = "Нажми клавишу…"; $("key").classList.add("capturing");
+  $("key-btn").textContent = "Отмена"; $("key-btn").onclick = stopCapture;
+}
+function stopCapture() {
+  capturing = false; $("key").classList.remove("capturing");
+  $("key-btn").textContent = "Назначить"; $("key-btn").onclick = captureKey;
+  refresh();
+}
+window.addEventListener("keydown", e => {
+  if (!capturing) { if (e.key === "Escape") { sheet(false); document.body.classList.remove("qr-open"); } return; }
+  e.preventDefault();
+  if (e.code === "Escape") return stopCapture();
+  let name = CODES[e.code] || (/^F\d+$/.test(e.code) ? e.code.toLowerCase() : null) ||
+             (/^Key[A-Z]$/.test(e.code) ? e.code.slice(3).toLowerCase() : null) || (/^Digit\d$/.test(e.code) ? e.code.slice(5) : null);
+  if (name) { api.set("hotkey", name).then(() => stopCapture()); }
+}, true);
+
+function applyRec() { api.apply_recommended().then(render); }
+function downloadCuda() { api.download_cuda().then(render); }
+function sheet(on) { document.body.classList.toggle("sheet-open", on); }
+
+window.addEventListener("pywebviewready", async () => {
+  api = window.pywebview.api;
+  await refresh();
+  requestAnimationFrame(() => { document.querySelectorAll(".seg").forEach(placeThumb); document.body.classList.add("ready"); api.shown(); });
+  setInterval(refresh, 1000);
+});
+window.addEventListener("resize", () => document.querySelectorAll(".seg").forEach(placeThumb));
+</script>
+</body>
+</html>

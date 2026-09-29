@@ -5,8 +5,9 @@ cd /d "%~dp0"
 ".venv\Scripts\pyinstaller.exe" --noconfirm --clean --onefile --noconsole ^
   --name Dictate --icon dictate.ico ^
   --collect-data faster_whisper ^
+  --add-data "ui;ui" --add-data "dictate.ico;." ^
   --collect-binaries ctranslate2 ^
-  --exclude-module nvidia --exclude-module psutil --exclude-module matplotlib ^
+  --exclude-module nvidia --exclude-module psutil --exclude-module matplotlib --exclude-module settings ^
   app.py
 echo.
 echo Готово: dist\Dictate.exe

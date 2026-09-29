@@ -19,11 +19,37 @@ import numpy as np
 log = logging.getLogger("dictate")
 
 APP = "Dictate"
-CONF_DIR = Path(os.environ.get("APPDATA", Path.home())) / APP
-DATA_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home())) / APP
+VERSION = "1.0.0"
+REPO = "m1nges/realtime-transcribe"
+REG_KEY = r"Software\Dictate"
+DEFAULT_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home())) / APP
+
+
+def install_dir():
+    """Папка, куда пользователь установил программу. Всё хозяйство живёт в ней."""
+    import winreg
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REG_KEY) as k:
+            d = Path(winreg.QueryValueEx(k, "InstallDir")[0])
+            if d.exists():
+                return d
+    except OSError:
+        pass
+    return None
+
+
+def set_install_dir(path):
+    import winreg
+    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, REG_KEY) as k:
+        winreg.SetValueEx(k, "InstallDir", 0, winreg.REG_SZ, str(path))
+
+
+DATA_DIR = install_dir() or DEFAULT_DIR
+CONF_DIR = DATA_DIR
 MODELS_DIR = DATA_DIR / "models"
 CUDA_DIR = DATA_DIR / "cuda"
 LOG_FILE = DATA_DIR / "dictate.log"
+STATUS_FILE = DATA_DIR / "status.json"
 SAMPLE_RATE = 16000
 
 DEFAULTS = {
@@ -36,6 +62,7 @@ DEFAULTS = {
     "openrouter_key_enc": "",
     "cleanup_model": "google/gemini-2.5-flash-lite",
     "autostart": False,
+    "check_updates": True,
     "min_seconds": 0.35,
 }
 
@@ -63,6 +90,12 @@ class Store:
         except (OSError, ValueError):
             pass
         self.lock = threading.Lock()
+
+    def reload(self):
+        try:
+            self.data = dict(self.defaults, **json.loads(self.path.read_text(encoding="utf-8")))
+        except (OSError, ValueError):
+            pass
 
     def __getitem__(self, k):
         return self.data.get(k, self.defaults.get(k))
@@ -425,3 +458,31 @@ GUIDE = """• Видеокарта NVIDIA (GeForce, RTX) с 4 ГБ памяти
 • Слабый ноутбук → «Процессор» + «Быстрая».
 • Не уверен → оставь «Авто», программа выберет сама.
 Модель скачивается один раз при первом выборе."""
+
+
+# ---------------------------------------------------------------- обновления
+
+def _ver(tag):
+    return tuple(int(x) for x in re.findall(r"\d+", tag)[:3])
+
+
+def check_update():
+    """Последний релиз на GitHub: (версия, ссылка) если он новее нашего, иначе None. Ничего не скачивает."""
+    req = urllib.request.Request(f"https://api.github.com/repos/{REPO}/releases/latest",
+                                 headers={"User-Agent": f"{APP}/{VERSION}", "Accept": "application/vnd.github+json"})
+    with urllib.request.urlopen(req, timeout=10) as r:
+        rel = json.loads(r.read())
+    tag = rel.get("tag_name", "")
+    if tag and _ver(tag) > _ver(VERSION):
+        return tag.lstrip("v"), rel.get("html_url") or f"https://github.com/{REPO}/releases/latest"
+    return None
+
+
+KEY_NAMES = {"right ctrl": "Правый Ctrl", "left ctrl": "Левый Ctrl", "ctrl": "Ctrl", "right alt": "Правый Alt",
+             "alt gr": "Правый Alt", "left alt": "Левый Alt", "right shift": "Правый Shift", "left shift": "Левый Shift",
+             "caps lock": "Caps Lock", "left windows": "Win", "right windows": "Правый Win", "menu": "Menu",
+             "space": "Пробел", "scroll lock": "Scroll Lock", "pause": "Pause", "insert": "Insert"}
+
+
+def key_label(name):
+    return KEY_NAMES.get(name, name.upper() if len(name) <= 3 else name.capitalize())

@@ -1,15 +1,17 @@
 """Диктовка: держишь клавишу, говоришь, отпускаешь — текст вставляется в активное поле.
 
-Точка входа. Трей, окно настроек, горячая клавиша, очередь распознавания.
+Точка входа. Трей, горячая клавиша, очередь распознавания. Окна (настройки, установка) — в webui.py,
+в отдельном процессе этого же exe, чтобы в фоне программа оставалась лёгкой.
 """
 import ctypes
+import json
 import logging
 import os
 import queue
 import sys
 import threading
+import subprocess
 import time
-import winreg
 
 # Потоки OpenMP после распознавания не крутятся вхолостую, а сразу засыпают — в простое 0% CPU
 os.environ.setdefault("KMP_BLOCKTIME", "0")
@@ -22,16 +24,7 @@ import engine  # noqa: E402
 from engine import config, stats, log  # noqa: E402
 
 FROZEN = getattr(sys, "frozen", False)
-KEY_NAMES = {"right ctrl": "Правый Ctrl", "left ctrl": "Левый Ctrl", "ctrl": "Ctrl", "right alt": "Правый Alt",
-             "alt gr": "Правый Alt", "left alt": "Левый Alt", "right shift": "Правый Shift", "caps lock": "Caps Lock",
-             "left windows": "Win", "right windows": "Правый Win", "menu": "Menu", "space": "Пробел",
-             "scroll lock": "Scroll Lock", "pause": "Pause", "insert": "Insert"}
-
-
-def key_label(name):
-    return KEY_NAMES.get(name, name.upper() if len(name) <= 3 else name.capitalize())
-
-
+key_label = engine.key_label
 # ---------------------------------------------------------------- служебное
 
 def setup_logging():
@@ -52,51 +45,30 @@ def setup_logging():
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
 
-SHOW_EVENT = "Local\\DictateShowSettings"
-
-
 def single_instance():
     """Вторая копия не запускается, а просит первую открыть настройки."""
+    import webui
     k32 = ctypes.windll.kernel32
     k32.CreateMutexW(None, False, "Local\\DictateApp")
     if k32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
-        ev = k32.OpenEventW(0x0002, False, SHOW_EVENT)  # EVENT_MODIFY_STATE
-        if ev:
-            k32.SetEvent(ev)
+        webui.signal(webui.SHOW_EVENT)
         sys.exit(0)
 
 
-def wait_show_requests(callback):
+def on_event(name, callback):
+    """Ждём именованное событие Windows в фоне (ноль нагрузки, пока его нет)."""
     k32 = ctypes.windll.kernel32
-    ev = k32.CreateEventW(None, False, False, SHOW_EVENT)
+    ev = k32.CreateEventW(None, False, False, name)
 
     def loop():
         while True:
             k32.WaitForSingleObject(ev, 0xFFFFFFFF)
-            callback()
+            try:
+                callback()
+            except Exception:
+                log.exception("Событие %s", name)
 
     threading.Thread(target=loop, daemon=True).start()
-
-
-RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
-
-
-def launch_command():
-    if FROZEN:
-        return f'"{sys.executable}"'
-    pyw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
-    return f'"{pyw}" "{os.path.abspath(__file__)}"'
-
-
-def set_autostart(on):
-    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE) as k:
-        if on:
-            winreg.SetValueEx(k, "Dictate", 0, winreg.REG_SZ, launch_command())
-        else:
-            try:
-                winreg.DeleteValue(k, "Dictate")
-            except FileNotFoundError:
-                pass
 
 
 def tray_image(active=True, size=64):
@@ -187,19 +159,22 @@ class App:
         self.paused = False
         self.recording = False
         self.jobs = queue.Queue()
-        self.settings = None
-        self.cuda_progress = None
         self.tray = None
+        self.update = None  # (версия, ссылка), если вышла новая
 
         threading.Thread(target=self._worker, daemon=True).start()
         self.hotkey = Hotkey(self)
         self._start_tray()
-        wait_show_requests(lambda: self.root.after(0, self.open_settings))
+        import webui
+        on_event(webui.SHOW_EVENT, self.open_settings)
+        on_event(webui.CONFIG_EVENT, self.on_config_changed)
+        on_event(webui.QUIT_EVENT, self.quit)
         first_run = not (engine.CONF_DIR / "config.json").exists()
         if first_run:
             config.update()  # фиксируем настройки по умолчанию
-            self.root.after(300, self.open_settings)
+            self.open_settings()
         self.reload_engine(notify_ready=first_run)
+        threading.Thread(target=self._update_loop, daemon=True).start()
 
     # --- движок
     def reload_engine(self, notify_ready=False):
@@ -230,12 +205,48 @@ class App:
 
         threading.Thread(target=load, daemon=True).start()
 
+    def on_config_changed(self):
+        """Окно настроек что-то поменяло: перечитываем и, если нужно, перезагружаем модель."""
+        config.reload()
+        t = self.transcriber
+        if t is None or engine.pick_engine() != (t.device, t.name):
+            self.reload_engine()
+        if self.tray:
+            self.tray.update_menu()
+
+    def _update_loop(self):
+        time.sleep(20)  # не мешаем старту
+        while True:
+            if config["check_updates"]:
+                try:
+                    upd = engine.check_update()
+                    if upd and upd != self.update:
+                        self.update = upd
+                        self.notify(f"Вышла новая версия {upd[0]}. Скачать — в меню значка в трее.")
+                        self.tray.update_menu()
+                        self._write_status()
+                except Exception as e:
+                    log.info("Не удалось проверить обновления: %s", e)
+            time.sleep(24 * 3600)
+
+    def open_update(self):
+        import webbrowser
+        webbrowser.open(self.update[1] if self.update else f"https://github.com/{engine.REPO}/releases/latest")
+
     def set_status(self, text):
         self.status = text
         if self.tray:
             self.tray.update_menu()
-        if self.settings:
-            self.root.after(0, self.settings.refresh)
+        self._write_status()
+
+    def _write_status(self):
+        # окно настроек читает это, чтобы показать, на чём сейчас работаем
+        t = self.transcriber
+        data = {"status": self.status, "engine": [t.device, t.name] if t else None, "update": self.update}
+        try:
+            engine.STATUS_FILE.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        except OSError:
+            pass
 
     def notify(self, text):
         try:
@@ -292,8 +303,6 @@ class App:
                 log.info("Фраза: %.1fс речи, распознавание %.2fс, чистка %.2fс, %d симв.", secs, t1 - t0, t2 - t1, len(text))
                 engine.paste(text + " ")
                 stats.update(dictations=stats["dictations"] + 1, audio_seconds=stats["audio_seconds"] + secs)
-                if self.settings:
-                    self.root.after(0, self.settings.refresh)
             except Exception:
                 log.exception("Ошибка распознавания")
             finally:
@@ -308,12 +317,14 @@ class App:
         def spent(_):
             return f"OpenRouter: потрачено ${stats['openrouter_usd']:.4f}"
 
-        self.tray = pystray.Icon("Dictate", tray_image(), "Диктовка", Menu(
+        self.tray = pystray.Icon("Dictate", tray_image(), f"Диктовка {engine.VERSION}", Menu(
+            Item(lambda _: f"Вышла версия {self.update[0]} — скачать", self.open_update,
+                 visible=lambda _: bool(self.update)),
             Item(lambda _: self.status, None, enabled=False),
             Item(spent, None, enabled=False,
                  visible=lambda _: config["cleanup_openrouter"] or stats["openrouter_usd"] > 0),
             Menu.SEPARATOR,
-            Item("Настройки…", lambda: self.root.after(0, self.open_settings), default=True),
+            Item("Настройки…", self.open_settings, default=True),
             Item("Пауза", self.toggle_pause, checked=lambda _: self.paused),
             Item("Открыть лог", lambda: os.startfile(engine.LOG_FILE)),
             Menu.SEPARATOR,
@@ -327,12 +338,9 @@ class App:
         self.tray.title = "Диктовка (пауза)" if self.paused else "Диктовка"
 
     def open_settings(self):
-        from settings import SettingsWindow
-
-        if self.settings:
-            self.settings.focus()
-        else:
-            self.settings = SettingsWindow(self)
+        # отдельный процесс того же exe: окно живёт, только пока открыто
+        cmd = [sys.executable, "--settings"] if FROZEN else [sys.executable, os.path.abspath(__file__), "--settings"]
+        subprocess.Popen(cmd, cwd=str(engine.DATA_DIR))
 
     def quit(self):
         try:
@@ -351,10 +359,28 @@ def main():
         ctypes.windll.shcore.SetProcessDpiAwareness(2)
     except Exception:
         pass
+    args = sys.argv[1:]
+    import webui
+
+    if "--settings" in args:
+        return webui.run_settings()
+    if "--uninstall" in args:
+        return webui.uninstall()
+    if FROZEN:
+        installed = engine.install_dir()
+        here = os.path.dirname(os.path.abspath(sys.executable))
+        if installed is None:
+            return webui.run_setup()  # первый запуск: спрашиваем, куда ставить
+        if os.path.normcase(str(installed)) != os.path.normcase(here):
+            return webui.update_installed(installed)  # запустили скачанную версию — обновляем установленную
+
     setup_logging()
     single_instance()
-    log.info("Старт, настройки: %s", engine.CONF_DIR)
-    App().run()
+    log.info("Старт v%s, папка: %s", engine.VERSION, engine.DATA_DIR)
+    app = App()
+    if "--updated" in args:
+        app.notify(f"Диктовка обновлена до версии {engine.VERSION}.")
+    app.run()
 
 
 if __name__ == "__main__":
