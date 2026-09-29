@@ -1,0 +1,17 @@
+# окружение и сборка
+.venv/
+build/
+dist/
+*.spec
+__pycache__/
+*.pyc
+
+# всё личное и секретное — никогда в репо
+config.json
+stats.json
+*.log
+.env
+.env.*
+*.key
+*.pem
+*.whl
